@@ -1,1 +1,5 @@
-model_list: []
+model_list: 
+  - model_name: gateway-test
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
