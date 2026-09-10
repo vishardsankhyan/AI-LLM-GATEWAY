@@ -1,0 +1,177 @@
+# Day 4 — LiteLLM Gateway Resilience & Fallback
+
+## Learning Objective
+
+Understand how an AI Gateway provides model-level resilience by routing a request to a backup model when the primary model fails.
+
+---
+
+## 1. LiteLLM Model Aliases
+
+We configured two logical model names:
+
+- `gateway-test` → `groq/openai/gpt-oss-120b`
+- `gateway-test-backup` → `groq/openai/gpt-oss-20b`
+
+The client sends requests using the gateway alias rather than the underlying provider model.
+
+```yaml
+model_list:
+  - model_name: gateway-test
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
+
+  - model_name: gateway-test-backup
+    litellm_params:
+      model: groq/openai/gpt-oss-20b
+      api_key: os.environ/GROQ_API_KEY
+
+2. Explicit Fallback Configuration
+
+LiteLLM Router was configured with:
+
+router_settings:
+  fallbacks:
+    - gateway-test: ["gateway-test-backup"]
+
+Traffic flow:
+
+Client
+  |
+  | model = gateway-test
+  v
+LiteLLM Router
+  |
+  +--> GPT-OSS 120B  (Primary)
+  |
+  | failure
+  v
+GPT-OSS 20B         (Fallback)
+  |
+  v
+Response
+
+Key Learning
+
+Defining a second model does not automatically make it a fallback.
+
+The fallback relationship must be explicitly configured.
+
+3. Failure Injection
+
+To prove the fallback mechanism, the primary model was deliberately changed to an invalid model:
+model: groq/openai/gpt-oss-120b-INVALID
+
+The backup remained:
+
+model: groq/openai/gpt-oss-20b
+
+A request was sent using:
+
+model = gateway-test
+
+LiteLLM successfully returned:
+
+Fallback 20B works
+
+The response indicated that the underlying model handling the request was:
+
+openai/gpt-oss-20b
+Result
+
+The fallback path was experimentally proven:
+
+Primary failure
+      ↓
+LiteLLM Router
+      ↓
+Backup model
+      ↓
+Successful response
+
+This demonstrates that the application does not need to implement this model failover logic itself.
+
+4. Primary Model Restoration
+
+After the failure-injection test, the primary model was restored:
+
+model: groq/openai/gpt-oss-120b
+
+A new request returned:
+
+Primary 120B restored
+
+with HTTP 200 OK.
+
+Current configuration:
+
+Logical Model	Underlying Model	Role
+gateway-test	groq/openai/gpt-oss-120b	Primary
+gateway-test-backup	groq/openai/gpt-oss-20b	Fallback
+5. Initial Observability Investigation
+
+We inspected the LiteLLM container logs.
+
+The logs confirmed successful initialization:
+
+LiteLLM: Proxy initialized with Config, Set models:
+    gateway-test
+    gateway-test-backup
+
+They also showed successful API requests:
+
+POST /v1/chat/completions HTTP/1.1" 200 OK
+
+The backup model alias also appeared in the logs.
+
+However, the default logs did not provide enough information to reconstruct the complete fallback sequence, including:
+
+Exact primary failure
+Failure reason
+Fallback decision
+Fallback attempt
+Provider/model selection
+Request-level correlation
+Key Learning
+
+Basic access logs are not enough for production AI Gateway observability.
+
+An operational AI Gateway should expose useful telemetry such as:
+
+Request ID
+Requested model alias
+Actual provider/model
+HTTP status
+Error reason
+Fallback activity
+Latency
+Token usage
+Request/response metrics
+
+Detailed observability is the next step.
+
+6. Day 4 Milestone Status
+Capability	Status
+LiteLLM model aliases	✅ Complete
+Primary model configuration	✅ Complete
+Backup model configuration	✅ Complete
+Explicit Router fallback	✅ Complete
+Failure injection	✅ Complete
+Fallback proof	✅ Complete
+Primary restoration	✅ Complete
+Basic log inspection	✅ Complete
+Detailed observability	⏳ Next
+Practical Takeaway
+
+Today's most important lesson:
+
+An AI Gateway becomes resilient only when routing and failure-handling policies are explicitly configured and tested under failure conditions.
+
+We did not simply configure a backup model.
+
+We deliberately broke the primary model and demonstrated that LiteLLM successfully routed the request to the backup model.
+
+Next session:
+
+LiteLLM Observability — making the failure and fallback path operationally visible.

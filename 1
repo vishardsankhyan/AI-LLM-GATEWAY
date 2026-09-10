@@ -4,11 +4,7 @@ model_list:
       model: groq/openai/gpt-oss-120b
       api_key: os.environ/GROQ_API_KEY
 
-  - model_name: gateway-test-backup
+  - model_name: gateway-test
     litellm_params:
-      model: groq/openai/gpt-oss-20b
+      model: groq/openai/gpt-oss-120b
       api_key: os.environ/GROQ_API_KEY
-
-router_settings:
-  fallbacks:
-    - gateway-test: ["gateway-test-backup"]
